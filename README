@@ -1,0 +1,49 @@
+
+-- CMPM 170 --
+-- Proto 3 --
+-- May 20,2025 --
+
+-- main.lua --
+
+-- This is the main file for the game. It initializes the game and loads the necessary modules.
+-- It also sets up the game loop and handles user input.
+
+-- rngBspawn.lua --
+
+-- create rng box spawner
+-- use minecraft chest sprite for these boxes
+-- allow top down scroller player view 
+-- rng redirects and picks from list below
+-- 33 % Enemy Spawn , 33 % Add Monster to Crew Spawn, 20% Upgrader Spawn, 14 % Misfortune Spawn (a trap that kills a member of your crew)
+
+-- encounters.lua --
+
+-- Gives user choice to add or remove monsters to your "crew" (works with myMonsters.lua)
+-- limit to 3 monsters
+-- different types of monsters 
+
+-- battle.lua --
+
+-- battle system that plays out in a turn based system
+-- pokemon style battles
+-- player can choose to attack, defend (only depending on monsters moves)
+
+-- upgrade.lua --
+
+-- upgrade system that allows the player to upgrade their monsters
+-- upgrade works like pokemon TMs where these upgrades will only be for the monsters move sets
+-- each monster is limited to only 4 moves
+
+-- myMonsters.lua --
+
+-- holds the monsters that the player has
+-- each monster has a name, type, moveset, and stats
+-- each monster has a level and exp
+-- each monster has a type (fire, water, grass, etc)
+-- each monster has a moveset (4 moves)
+-- each monster has stats (attack, defense, speed, etc)
+
+-- misfortune.lua --
+-- misfortune system that allows the player to lose a monster
+-- misfortune will be a trap that kills a member of your crew
+-- misfortune will be a random event that happens when the player is exploring
