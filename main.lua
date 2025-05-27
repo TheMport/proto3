@@ -5,7 +5,7 @@ local chestAnimation = require("chestAnim")
 
 local rngRedirect = {
     "encounters",   -- will be when you can add a monster to your crew
-    "upgrade",  -- will be when you can upgrade your monster
+   -- "upgrade",  -- will be when you can upgrade your monster
     "misfortune",   --  you need to remove a monster from your crew
     "battle"    -- will be when you can battle an enemy
 }
@@ -40,7 +40,11 @@ function spawnChests(count)
 end
 
 function love.load()
-    spawnChests(10)
+    spawnChests(100)
+    love.window.setTitle("Hidden Fates")
+    love.graphics.setBackgroundColor(0.5, 0.5, 0.5)
+    love.window.setMode(800, 600, { resizable = true, vsync = true })
+    love.mouse.setVisible(true)
 end
 
 function isChestClicked(x, y)
@@ -95,6 +99,9 @@ function love.update(dt)
         if chestAnimation.isFinished() then
             currentModule = require(nextModule)
             if currentModule and currentModule.start then
+                package.loaded[nextModule] = nil
+                currentModule = require(nextModule)
+
                 currentModule.start(onModuleComplete)
             end
             gameState = "module"
