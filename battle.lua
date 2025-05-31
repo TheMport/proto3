@@ -1,7 +1,7 @@
 local M = {}
-local onCompleteCallback = nil
+local myMonsters = require("myMonsters")
 
--- state management
+local onCompleteCallback = nil
 local battleState = "intro"  -- intro, playerTurn, enemyTurn, victory, defeat
 local battleTimer = 0
 local messageTimer = 0
@@ -9,55 +9,38 @@ local currentMessage = ""
 local messageQueue = {}
 local animationTimer = 0
 
--- Sprite loaders ( needs updating )
-local enemySprite = love.graphics.newImage("sprites/Forest_Monsters_FREE/Mushroom/Mushroom without VFX/Mushroom-Idle.png")
-local heroSprite = love.graphics.newImage("sprites/heroSprites/1 Pink_Monster/Pink_Monster_Idle_4.png")
-
--- Will be altered to display different sprites later
-local player = {
-    name = "Pink Monster",
-    hp = 100,
-    maxHp = 100,
-    level = 12,
-    x = 150,
-    y = 350,
-    sprite = heroSprite,
-    scale = 3,
-    moves = {
-        {name = "Tackle", power = 20, type = "Normal"},
-        {name = "Quick Attack", power = 15, type = "Normal"},
-        {name = "Thunder Shock", power = 25, type = "Electric"},
-        {name = "Rest", power = 0, type = "Normal"}
-    }
-}
-
-local enemy = {
-    name = "Wild Mushroom",
-    hp = 80,
-    maxHp = 80,
-    level = 10,
-    x = 550,
-    y = 200,
-    sprite = enemySprite,
-    scale = 3,
-    moves = {
-        {name = "Spore", power = 0, type = "Grass"},
-        {name = "Tackle", power = 18, type = "Normal"},
-        {name = "Poison Powder", power = 0, type = "Poison"},
-        {name = "Headbutt", power = 22, type = "Normal"}
-    }
-}
-
--- UI
+-- Battle participants
+local playerTeam = {}
+local currentPlayerMonster = nil
+local enemy = nil
 local selectedMove = 1
 local showMoveMenu = false
+
+-- UI elements
 local battleBackground = {r = 0.4, g = 0.7, b = 0.4}
 local textBox = {x = 50, y = 450, width = 700, height = 120}
-
--- Battle effects
 local damageNumbers = {}
 local shakeTimer = 0
 local shakeIntensity = 0
+
+-- Type effectiveness chart
+local typeChart = {
+    Normal = {Rock = 0.5, Ghost = 0},
+    Fighting = {Normal = 2, Rock = 2, Flying = 0.5, Poison = 0.5},
+    Flying = {Fighting = 2, Grass = 2, Bug = 2, Rock = 0.5},
+    Poison = {Grass = 2, Poison = 0.5, Ground = 0.5},
+    Ground = {Poison = 2, Rock = 2, Electric = 2, Grass = 0.5},
+    Rock = {Flying = 2, Bug = 2, Fire = 2, Fighting = 0.5, Ground = 0.5},
+    Bug = {Grass = 2, Poison = 2, Flying = 0.5, Fire = 0.5},
+    Ghost = {Ghost = 2, Psychic = 0},
+    Fire = {Grass = 2, Bug = 2, Ice = 2, Fire = 0.5, Water = 0.5, Rock = 0.5},
+    Water = {Fire = 2, Ground = 2, Rock = 2, Water = 0.5, Grass = 0.5},
+    Grass = {Water = 2, Ground = 2, Rock = 2, Fire = 0.5, Grass = 0.5, Flying = 0.5, Bug = 0.5},
+    Electric = {Water = 2, Flying = 2, Ground = 0, Electric = 0.5},
+    Psychic = {Fighting = 2, Poison = 2, Psychic = 0.5},
+    Ice = {Flying = 2, Ground = 2, Grass = 2, Fire = 0.5, Water = 0.5, Ice = 0.5},
+    Dragon = {Dragon = 2}
+}
 
 function M.start(onComplete)
     onCompleteCallback = onComplete
@@ -67,15 +50,58 @@ function M.start(onComplete)
     currentMessage = ""
     messageQueue = {}
     
-    -- Reset health
-    player.hp = player.maxHp
-    enemy.hp = enemy.maxHp
+    -- Setup player team
+    playerTeam = myMonsters.getMonsters()
+    if #playerTeam == 0 then
+        addMessage("You have no monsters to battle with!")
+        battleState = "defeat"
+        return
+    end
     
-
+    -- Find first alive monster
+    currentPlayerMonster = nil
+    for _, monster in ipairs(playerTeam) do
+        if monster.hp > 0 then
+            currentPlayerMonster = monster
+            break
+        end
+    end
+    
+    if not currentPlayerMonster then
+        addMessage("All your monsters have fainted!")
+        battleState = "defeat"
+        return
+    end
+    
+    -- Initialize battle position properties
+    currentPlayerMonster.x = 150
+    currentPlayerMonster.y = 350
+    currentPlayerMonster.scale = 3
+    
+    -- Setup enemy
+    enemy = {
+        name = "Wild Mushroom",
+        hp = 80,
+        maxHp = 80,
+        attack = 12,
+        defense = 10,
+        speed = 8,
+        level = 10,
+        x = 550,
+        y = 200,
+        sprite = love.graphics.newImage("sprites/Forest_Monsters_FREE/Mushroom/Mushroom without VFX/Mushroom-Idle.png"),
+        scale = 3,
+        moves = {
+            {name = "Spore", power = 0, type = "Grass", pp = 10},
+            {name = "Tackle", power = 18, type = "Normal", pp = 15},
+            {name = "Poison Powder", power = 0, type = "Poison", pp = 10},
+            {name = "Headbutt", power = 22, type = "Normal", pp = 10}
+        },
+        type = "Grass"
+    }
+    
     addMessage("A wild " .. enemy.name .. " appeared!")
-    addMessage("Go! " .. player.name .. "!")
-    
-    print("Pokemon-style battle starts!")
+    addMessage("Go! " .. currentPlayerMonster.name .. "!")
 end
 
 function addMessage(msg)
@@ -95,7 +121,6 @@ function processMessageQueue(dt)
             currentMessage = ""
             messageTimer = 0
             
-            -- countinue battle state after intro 
             if battleState == "intro" and #messageQueue == 0 then
                 battleState = "playerTurn"
                 showMoveMenu = true
@@ -111,20 +136,30 @@ function processMessageQueue(dt)
 end
 
 function performPlayerMove(moveIndex)
-    local move = player.moves[moveIndex]
+    local move = currentPlayerMonster.moves[moveIndex]
+    if move.pp <= 0 then
+        addMessage("No PP left for this move!")
+        return
+    end
+    
     showMoveMenu = false
+    move.pp = move.pp - 1
     
-    addMessage(player.name .. " used " .. move.name .. "!")
+    addMessage(currentPlayerMonster.name .. " used " .. move.name .. "!")
     
-    if move.name == "Rest" then
-        local healAmount = math.min(50, player.maxHp - player.hp)
-        player.hp = player.hp + healAmount
-        addMessage(player.name .. " restored " .. healAmount .. " HP!")
-    else
-        local damage = calculateDamage(move.power, player.level, enemy.level)
+    if move.power > 0 then
+        local damage = calculateDamage(
+            move.power, 
+            currentPlayerMonster.attack, 
+            enemy.defense, 
+            currentPlayerMonster.level, 
+            enemy.level,
+            move.type,
+            enemy.type
+        )
+        
         enemy.hp = math.max(0, enemy.hp - damage)
         
-        -- damage number effect
         table.insert(damageNumbers, {
             value = damage,
             x = enemy.x + 32,
@@ -133,83 +168,167 @@ function performPlayerMove(moveIndex)
             color = {1, 1, 1}
         })
         
-
         shakeTimer = 0.3
         shakeIntensity = 5
         
-        if damage > 20 then
+        if damage > move.power * 1.5 then
             addMessage("It's super effective!")
-        elseif damage < 10 then
+        elseif damage < move.power * 0.5 then
             addMessage("It's not very effective...")
         end
+    elseif move.effect then
+        -- Handle status effects here
+        addMessage("It had an effect!")
     end
     
     if enemy.hp <= 0 then
         battleState = "victory"
         addMessage(enemy.name .. " fainted!")
-        addMessage(player.name .. " gained experience!")
+        awardXP()
+        addMessage(currentPlayerMonster.name .. " gained " .. calculateXP() .. " XP!")
+        checkLevelUp()
         addMessage("You won the battle!")
     else
         battleState = "enemyTurn"
     end
 end
 
+function calculateDamage(power, attack, defense, attackerLevel, defenderLevel, moveType, enemyType)
+    -- Calculate type effectiveness
+    local effectiveness = 1
+    if typeChart[moveType] and typeChart[moveType][enemyType] then
+        effectiveness = typeChart[moveType][enemyType]
+    end
+    
+    local baseDamage = (((2 * attackerLevel / 5 + 2) * power * (attack / defense)) / 50 + 2)
+    local variance = love.math.random(0.85, 1.0)
+    return math.floor(baseDamage * variance * effectiveness)
+end
+
+function calculateXP()
+    return math.floor(enemy.level * 10 / currentPlayerMonster.level)
+end
+
+function awardXP()
+    currentPlayerMonster.xp = currentPlayerMonster.xp + calculateXP()
+end
+
+function checkLevelUp()
+    if currentPlayerMonster.xp >= currentPlayerMonster.nextLevelXp then
+        currentPlayerMonster.level = currentPlayerMonster.level + 1
+        currentPlayerMonster.xp = currentPlayerMonster.xp - currentPlayerMonster.nextLevelXp
+        currentPlayerMonster.nextLevelXp = math.floor(currentPlayerMonster.nextLevelXp * 1.2)
+        
+        -- Increase stats
+        currentPlayerMonster.maxHp = currentPlayerMonster.maxHp + 5
+        currentPlayerMonster.hp = currentPlayerMonster.maxHp
+        currentPlayerMonster.attack = currentPlayerMonster.attack + 2
+        currentPlayerMonster.defense = currentPlayerMonster.defense + 2
+        currentPlayerMonster.speed = currentPlayerMonster.speed + 1
+        
+        addMessage(currentPlayerMonster.name .. " grew to level " .. currentPlayerMonster.level .. "!")
+    end
+end
+
 function performEnemyTurn()
-    local moveIndex = love.math.random(1, #enemy.moves)
-    local move = enemy.moves[moveIndex]
+    local availableMoves = {}
+    for _, move in ipairs(enemy.moves) do
+        if move.pp > 0 then
+            table.insert(availableMoves, move)
+        end
+    end
+    
+    if #availableMoves == 0 then
+        addMessage(enemy.name .. " has no moves left!")
+        battleState = "playerTurn"
+        showMoveMenu = true
+        return
+    end
+    
+    local moveIndex = love.math.random(1, #availableMoves)
+    local move = availableMoves[moveIndex]
+    move.pp = move.pp - 1
     
     addMessage(enemy.name .. " used " .. move.name .. "!")
     
     if move.power > 0 then
-        local damage = calculateDamage(move.power, enemy.level, player.level)
-        player.hp = math.max(0, player.hp - damage)
+        local damage = calculateDamage(
+            move.power, 
+            enemy.attack, 
+            currentPlayerMonster.defense, 
+            enemy.level, 
+            currentPlayerMonster.level,
+            move.type,
+            currentPlayerMonster.type
+        )
         
-        -- damage number effect
+        currentPlayerMonster.hp = math.max(0, currentPlayerMonster.hp - damage)
+        
         table.insert(damageNumbers, {
             value = damage,
-            x = player.x + 32,
-            y = player.y,
+            x = currentPlayerMonster.x + 32,  -- Now currentPlayerMonster.x exists
+            y = currentPlayerMonster.y,       -- and currentPlayerMonster.y exists
             timer = 1.0,
             color = {1, 0.5, 0.5}
         })
         
-
         shakeTimer = 0.2
         shakeIntensity = 3
+        
+        if damage > move.power * 1.5 then
+            addMessage("It's super effective!")
+        elseif damage < move.power * 0.5 then
+            addMessage("It's not very effective...")
+        end
     else
         addMessage("But nothing happened...")
     end
     
-    if player.hp <= 0 then
-        battleState = "defeat"
-        addMessage(player.name .. " fainted!")
-        addMessage("You lost the battle!")
+    if currentPlayerMonster.hp <= 0 then
+        addMessage(currentPlayerMonster.name .. " fainted!")
+        -- Find next alive monster
+        local nextMonster = nil
+        for _, monster in ipairs(playerTeam) do
+            if monster.hp > 0 then
+                nextMonster = monster
+                break
+            end
+        end
+        
+        if nextMonster then
+            currentPlayerMonster = nextMonster
+            -- Initialize position for new monster
+            currentPlayerMonster.x = 150
+            currentPlayerMonster.y = 350
+            currentPlayerMonster.scale = 3
+            
+            addMessage("Go! " .. currentPlayerMonster.name .. "!")
+            battleState = "playerTurn"
+            showMoveMenu = true
+        else
+            battleState = "defeat"
+            addMessage("All your monsters have fainted!")
+            addMessage("You lost the battle!")
+        end
     else
         battleState = "playerTurn"
         showMoveMenu = true
     end
 end
 
-function calculateDamage(power, attackerLevel, defenderLevel)
-    local baseDamage = (power * attackerLevel / defenderLevel) / 2
-    local variance = love.math.random(0.8, 1.2)
-    return math.floor(baseDamage * variance)
-end
-
 function M.update(dt)
     battleTimer = battleTimer + dt
     animationTimer = animationTimer + dt
     
-
     if shakeTimer > 0 then
         shakeTimer = shakeTimer - dt
     end
     
-    -- damage #s
+    -- Update damage numbers
     for i = #damageNumbers, 1, -1 do
         local dmg = damageNumbers[i]
         dmg.timer = dmg.timer - dt
-        dmg.y = dmg.y - 50 * dt  -- Float upward
+        dmg.y = dmg.y - 50 * dt
         
         if dmg.timer <= 0 then
             table.remove(damageNumbers, i)
@@ -223,14 +342,13 @@ function love.keypressed(key)
     if battleState == "playerTurn" and showMoveMenu then
         if key == "up" and selectedMove > 1 then
             selectedMove = selectedMove - 1
-        elseif key == "down" and selectedMove < #player.moves then
+        elseif key == "down" and selectedMove < #currentPlayerMonster.moves then
             selectedMove = selectedMove + 1
         elseif key == "return" or key == "space" then
             performPlayerMove(selectedMove)
         end
     elseif currentMessage ~= "" then
         if key == "return" or key == "space" then
-            -- Skip message display
             currentMessage = ""
             messageTimer = 0
         end
@@ -260,8 +378,8 @@ function drawHealthBar(x, y, width, height, currentHp, maxHp, isPlayer)
     love.graphics.rectangle("line", x, y, width, height)
     
     -- HP text
-    local name = isPlayer and player.name or enemy.name
-    local level = isPlayer and player.level or enemy.level
+    local name = isPlayer and currentPlayerMonster.name or enemy.name
+    local level = isPlayer and currentPlayerMonster.level or enemy.level
     love.graphics.print(name .. " Lv." .. level, x, y - 25)
     love.graphics.print("HP: " .. currentHp .. "/" .. maxHp, x, y + height + 5)
 end
@@ -281,31 +399,26 @@ function drawMoveMenu()
     -- Title
     love.graphics.print("Choose a move:", menuX + 10, menuY + 10)
     
-    -- Moves
-    for i, move in ipairs(player.moves) do
+    -- Moves with PP
+    for i, move in ipairs(currentPlayerMonster.moves) do
         local y = menuY + 40 + (i - 1) * 30
         local color = (i == selectedMove) and {1, 1, 0} or {1, 1, 1}
         love.graphics.setColor(color)
         
         local prefix = (i == selectedMove) and "> " or "  "
-        love.graphics.print(prefix .. move.name .. " (Power: " .. move.power .. ")", menuX + 10, y)
+        love.graphics.print(prefix .. move.name .. " (PP: " .. move.pp .. "/" .. move.maxPp .. ")", menuX + 10, y)
     end
 end
 
-
-    -- will implement this box to other scenes later
 function drawTextBox()
-    -- Text box background
     love.graphics.setColor(0.1, 0.1, 0.3, 0.9)
     love.graphics.rectangle("fill", textBox.x, textBox.y, textBox.width, textBox.height)
     love.graphics.setColor(1, 1, 1)
     love.graphics.rectangle("line", textBox.x, textBox.y, textBox.width, textBox.height)
     
-    -- Current message
     if currentMessage ~= "" then
         love.graphics.print(currentMessage, textBox.x + 20, textBox.y + 20)
         
-        -- Blinker indicator
         if math.floor(messageTimer * 3) % 2 == 0 then
             love.graphics.print("▼", textBox.x + textBox.width - 40, textBox.y + textBox.height - 40)
         end
@@ -313,7 +426,6 @@ function drawTextBox()
 end
 
 function M.draw()
-
     local shakeX, shakeY = 0, 0
     if shakeTimer > 0 then
         shakeX = (love.math.random() - 0.5) * shakeIntensity
@@ -327,30 +439,32 @@ function M.draw()
     love.graphics.setColor(battleBackground.r, battleBackground.g, battleBackground.b)
     love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
     
-    -- Ground/platform effects
+    -- Ground/platform
     love.graphics.setColor(0.3, 0.5, 0.3)
     love.graphics.rectangle("fill", 0, 400, love.graphics.getWidth(), 200)
     love.graphics.setColor(0.6, 0.4, 0.2)
     love.graphics.rectangle("fill", 0, 250, love.graphics.getWidth(), 150)
     
-    -- sprites
-    if player.hp > 0 then
+    -- Player monster
+    if currentPlayerMonster and currentPlayerMonster.hp > 0 then
+        local img = love.graphics.newImage(currentPlayerMonster.spritePath)
         love.graphics.setColor(1, 1, 1)
-        love.graphics.draw(player.sprite, player.x, player.y, 0, player.scale, player.scale)
+        love.graphics.draw(img, 150, 350, 0, 3, 3)
     end
     
+    -- Enemy
     if enemy.hp > 0 then
         love.graphics.setColor(1, 1, 1)
-        -- flip enemy sprite horizontally
         love.graphics.draw(enemy.sprite, enemy.x + enemy.sprite:getWidth() * enemy.scale, enemy.y, 0, -enemy.scale, enemy.scale)
     end
     
-    -- health bars
-    love.graphics.setColor(1, 1, 1)
-    drawHealthBar(50, 50, 200, 20, player.hp, player.maxHp, true)   -- Player health (top-left)
-    drawHealthBar(550, 150, 200, 20, enemy.hp, enemy.maxHp, false)  -- Enemy health (top-right)
+    -- Health bars
+    if currentPlayerMonster then
+        drawHealthBar(50, 50, 200, 20, currentPlayerMonster.hp, currentPlayerMonster.maxHp, true)
+    end
+    drawHealthBar(550, 150, 200, 20, enemy.hp, enemy.maxHp, false)
     
-    -- damage numbers
+    -- Damage numbers
     for _, dmg in ipairs(damageNumbers) do
         love.graphics.setColor(dmg.color)
         love.graphics.print("-" .. dmg.value, dmg.x, dmg.y)
@@ -363,7 +477,7 @@ function M.draw()
     drawTextBox()
     drawMoveMenu()
     
-    -- Debugger
+    -- Debug info
     love.graphics.setColor(0.7, 0.7, 0.7)
     love.graphics.print("Battle State: " .. battleState, 10, 10)
     love.graphics.print("Use ARROW KEYS + ENTER to select moves", 10, love.graphics.getHeight() - 60)

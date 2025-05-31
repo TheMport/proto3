@@ -1,4 +1,3 @@
--- encounters.lua
 local myMonsters = require("myMonsters")
 
 local M = {}
@@ -35,12 +34,13 @@ function M.start(onComplete)
     local hero = heroes[love.math.random(1, #heroes)]
     selectedHero = {
         name = hero.name,
+        folder = hero.folder,
+        file = hero.file,
         spritePath = "sprites/heroSprites/" .. hero.folder .. "/" .. hero.file
     }
 
     heroImage = love.graphics.newImage(selectedHero.spritePath)
 end
-
 
 function M.update(dt)
     if love.keyboard.isDown("left") then
@@ -52,8 +52,15 @@ function M.update(dt)
     if love.keyboard.isDown("return") then
         if choiceIndex == 1 then -- Yes
             if not myMonsters.isFull() then
-                myMonsters.addMonster(selectedHero)
-                print(selectedHero.name .. " added to your crew!")
+                -- Pass the complete monster data including sprite path
+                if myMonsters.addMonster({
+                    name = selectedHero.name,
+                    spritePath = selectedHero.spritePath
+                }) then
+                    print(selectedHero.name .. " added to your crew!")
+                else
+                    print("Failed to add monster")
+                end
             else
                 print("Crew is full! Cannot add " .. selectedHero.name)
             end
@@ -107,9 +114,13 @@ function M.draw()
     love.graphics.setColor(noColor)
     love.graphics.printf("NO", 100, optionY, screenW, "center")
 
+    -- Team status
+    if myMonsters.isFull() then
+        love.graphics.setColor(1, 0.5, 0.5)
+        love.graphics.printf("Your team is full!", 0, optionY + 40, screenW, "center")
+    end
+
     love.graphics.setColor(1, 1, 1)
 end
-
-
 
 return M
