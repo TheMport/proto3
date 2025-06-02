@@ -426,6 +426,7 @@ function drawTextBox()
 end
 
 function M.draw()
+
     local shakeX, shakeY = 0, 0
     if shakeTimer > 0 then
         shakeX = (love.math.random() - 0.5) * shakeIntensity
@@ -453,7 +454,7 @@ function M.draw()
     end
     
     -- Enemy
-    if enemy.hp > 0 then
+    if enemy and enemy.hp > 0 then
         love.graphics.setColor(1, 1, 1)
         love.graphics.draw(enemy.sprite, enemy.x + enemy.sprite:getWidth() * enemy.scale, enemy.y, 0, -enemy.scale, enemy.scale)
     end

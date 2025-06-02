@@ -16,8 +16,12 @@ local chestTimer = 0
 local currentModule = nil
 local animatingChest = nil
 
+-- Window Settings
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+
 -- player (temp)
-local player = { x = 100, y = 100, size = 32, speed = 200 }
+local player = { x = SCREEN_WIDTH/2, y = SCREEN_HEIGHT/2, size = 32, speed = 200 }
 
 -- camera 
 local cam = { x = 0, y = 0 }
@@ -30,8 +34,8 @@ function spawnChests(count)
     for i = 1, count do
         table.insert(chests, {
             image = chestImage,
-            x = love.math.random(100, 1000),
-            y = love.math.random(100, 1000),
+            x = love.math.random(0, SCREEN_WIDTH),
+            y = love.math.random(0, SCREEN_HEIGHT),
             width = 64,
             height = 64,
             opened = false
@@ -40,10 +44,10 @@ function spawnChests(count)
 end
 
 function love.load()
-    spawnChests(100)
+    spawnChests(20)
     love.window.setTitle("Hidden Fates")
     love.graphics.setBackgroundColor(0.5, 0.5, 0.5)
-    love.window.setMode(800, 600, { resizable = true, vsync = true })
+    love.window.setMode(SCREEN_WIDTH, SCREEN_HEIGHT, { resizable = true, vsync = true })
     love.mouse.setVisible(true)
 end
 
@@ -91,8 +95,8 @@ function love.update(dt)
     end
 
     -- Camera follows player
-    cam.x = player.x - love.graphics.getWidth() / 2
-    cam.y = player.y - love.graphics.getHeight() / 2
+    -- cam.x = player.x - love.graphics.getWidth() / 2
+    -- cam.y = player.y - love.graphics.getHeight() / 2
 
     if gameState == "chestAnimation" then
         chestAnimation.update(dt)
