@@ -5,7 +5,6 @@ local chestAnimation = require("chestAnim")
 
 local rngRedirect = {
     "encounters",   -- will be when you can add a monster to your crew
-   -- "upgrade",  -- will be when you can upgrade your monster
     "misfortune",   --  you need to remove a monster from your crew
     "battle"    -- will be when you can battle an enemy
 }
@@ -77,6 +76,12 @@ function love.mousepressed(x, y, button)
             chestAnimation.reset()  
             print("Chest clicked! Redirecting to: " .. nextModule)
         end
+    end
+end
+
+function love.keypressed(key)
+    if gameState == "module" and currentModule and currentModule.keypressed then
+        currentModule.keypressed(key)
     end
 end
 

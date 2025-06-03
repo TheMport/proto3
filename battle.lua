@@ -50,6 +50,28 @@ function M.start(onComplete)
     currentMessage = ""
     messageQueue = {}
     
+    -- Initialize enemy first to prevent nil access
+    enemy = {
+        name = "Wild Mushroom",
+        hp = 80,
+        maxHp = 80,
+        attack = 12,
+        defense = 10,
+        speed = 8,
+        level = 10,
+        x = 550,
+        y = 200,
+        sprite = love.graphics.newImage("sprites/Forest_Monsters_FREE/Mushroom/Mushroom without VFX/Mushroom-Idle.png"),
+        scale = 3,
+        moves = {
+            {name = "Spore", power = 0, type = "Grass", pp = 10},
+            {name = "Tackle", power = 18, type = "Normal", pp = 15},
+            {name = "Poison Powder", power = 0, type = "Poison", pp = 10},
+            {name = "Headbutt", power = 22, type = "Normal", pp = 10}
+        },
+        type = "Grass"
+    }
+    
     -- Setup player team
     playerTeam = myMonsters.getMonsters()
     if #playerTeam == 0 then
@@ -77,28 +99,6 @@ function M.start(onComplete)
     currentPlayerMonster.x = 150
     currentPlayerMonster.y = 350
     currentPlayerMonster.scale = 3
-    
-    -- Setup enemy
-    enemy = {
-        name = "Wild Mushroom",
-        hp = 80,
-        maxHp = 80,
-        attack = 12,
-        defense = 10,
-        speed = 8,
-        level = 10,
-        x = 550,
-        y = 200,
-        sprite = love.graphics.newImage("sprites/Forest_Monsters_FREE/Mushroom/Mushroom without VFX/Mushroom-Idle.png"),
-        scale = 3,
-        moves = {
-            {name = "Spore", power = 0, type = "Grass", pp = 10},
-            {name = "Tackle", power = 18, type = "Normal", pp = 15},
-            {name = "Poison Powder", power = 0, type = "Poison", pp = 10},
-            {name = "Headbutt", power = 22, type = "Normal", pp = 10}
-        },
-        type = "Grass"
-    }
     
     addMessage("A wild " .. enemy.name .. " appeared!")
     addMessage("Go! " .. currentPlayerMonster.name .. "!")
@@ -266,8 +266,8 @@ function performEnemyTurn()
         
         table.insert(damageNumbers, {
             value = damage,
-            x = currentPlayerMonster.x + 32,  -- Now currentPlayerMonster.x exists
-            y = currentPlayerMonster.y,       -- and currentPlayerMonster.y exists
+            x = currentPlayerMonster.x + 32,  
+            y = currentPlayerMonster.y,       
             timer = 1.0,
             color = {1, 0.5, 0.5}
         })
@@ -427,6 +427,12 @@ end
 
 function M.draw()
 
+    if not enemy then
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.printf("Battle loading...", 0, love.graphics.getHeight() / 2, love.graphics.getWidth(), "center")
+        return
+    end
+
     local shakeX, shakeY = 0, 0
     if shakeTimer > 0 then
         shakeX = (love.math.random() - 0.5) * shakeIntensity
@@ -463,7 +469,9 @@ function M.draw()
     if currentPlayerMonster then
         drawHealthBar(50, 50, 200, 20, currentPlayerMonster.hp, currentPlayerMonster.maxHp, true)
     end
-    drawHealthBar(550, 150, 200, 20, enemy.hp, enemy.maxHp, false)
+    if enemy then
+        drawHealthBar(550, 150, 200, 20, enemy.hp, enemy.maxHp, false)
+    end
     
     -- Damage numbers
     for _, dmg in ipairs(damageNumbers) do
