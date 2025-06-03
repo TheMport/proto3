@@ -490,7 +490,7 @@ function M.draw()
     love.graphics.setColor(0.7, 0.7, 0.7)
     love.graphics.print("Battle State: " .. battleState, 10, 10)
     love.graphics.print("Use ARROW KEYS + ENTER to select moves", 10, love.graphics.getHeight() - 60)
-    love.graphics.print("Press ENTER/SPACE to continue text", 10, love.graphics.getHeight() - 40)
+    --love.graphics.print("Press ENTER/SPACE to continue text", 10, love.graphics.getHeight() - 40)
 end
 
 return M
